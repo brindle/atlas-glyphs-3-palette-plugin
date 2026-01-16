@@ -1,0 +1,116 @@
+Atlas Glyphs Palette — Handoff for next agent
+=============================================
+
+Location (work only inside this folder)
+- Plugin bundle root (where you must work):
+  ~/Library/Application Support/Glyphs 3/Plugins/Atlas.glyphsPalette/Contents
+- Project workspace copy (if you're working in the repo):
+  /Users/brindle/Desktop/nulltype/glyphs-plugin-diy/Atlas-0_01.glyphsPalette/____PluginName____.glyphsPalette/Contents
+
+Important files (edit only inside the bundle)
+- `Contents/Resources/plugin.py`  — main Python controller (primary file to edit)
+- `Contents/Resources/IBdialog.xib` and `Contents/Resources/IBdialog.nib` — UI files
+- `Contents/Info.plist`  — bundle metadata (do not change unless necessary)
+- `Contents/MacOS/plugin`  — executable (do not change)
+
+Primary goal
+- Make the palette reliably load, display status text in the palette body, and provide reliable debugging traces even when the Glyphs Macro Panel is unreliable on this machine.
+
+High-level tasks (execute in order)
+1) Confirm bundle location and flattening
+   - Ensure the plugin bundle is exactly at:
+     `~/Library/Application Support/Glyphs 3/Plugins/Atlas.glyphsPalette/Contents`
+   - Ensure `Contents/Resources` contains exactly: `plugin.py`, `IBdialog.nib`, `IBdialog.xib` (no nested .glyphsPalette directories).
+   - Command to run locally (zsh):
+     ls -la ~/Library/"Application Support"/"Glyphs 3"/Plugins/Atlas.glyphsPalette/Contents/Resources
+
+2) Reproduce runtime state
+   - Quit Glyphs completely, reopen it.
+   - Immediately open `Window → Macro Panel` and leave it visible.
+   - Note whether any prints appear when plugin loads. If nothing appears, proceed to file-logging.
+
+3) Add file-based logging in `plugin.py` (safe, reversible)
+   - Add a small helper that appends timestamped lines to `~/Library/Logs/Atlas-plugin.log`.
+   - Log points: import-time, `settings()`, `start()`, and `update()` entry and when UI write occurs.
+   - Minimal example to add near top of `plugin.py`:
+
+   import os, datetime
+   LOG_PATH = os.path.expanduser('~/Library/Logs/Atlas-plugin.log')
+   def _log(msg):
+       ts = datetime.datetime.now().isoformat()
+       try:
+           with open(LOG_PATH, 'a') as f:
+               f.write(f"{ts} Atlas: {msg}\n")
+       except Exception:
+           pass
+
+   # then call `_log('imported plugin.py')` right after defining it
+
+   - Use `_log()` also inside `start()`, `settings()`, and `update()` with concise messages.
+
+4) Add a one-time Message in `start()` (temporary)
+   - Add `Message('Atlas plugin started — check ~/Library/Logs/Atlas-plugin.log')` to visibly confirm plugin execution.
+   - This is temporary for debugging; remove after verification.
+
+5) Verify nib/xib outlets
+   - Open `IBdialog.xib` in Xcode/Interface Builder and confirm:
+     - `File's Owner` custom class is `Atlas`.
+     - `textField` outlet is connected to the visible text control.
+   - If outlet is disconnected, reconnect `textField` to the visible control and save. Rebuild/compile nib if you use Xcode so `IBdialog.nib` matches.
+   - If you can't access Interface Builder, inspect `IBdialog.xib` as text to find `customClass` and outlets, or implement programmatic fallback.
+
+6) Programmatic fallback (guarded) — only if nib is broken
+   - After `self.loadNib('IBdialog', __file__)` in `plugin.py`, add:
+     if getattr(self, 'textField', None) is None:
+         # create GSPaletteView and NSTextView / NSTextField, assign to self.textField
+         # set view as palette UI so update() can write to it
+   - Use `objc.lookUpClass('GSPaletteView')` to get the palette container.
+   - Keep fallback minimal and clearly marked in code so it's easy to remove later.
+
+7) Ensure update() registration & UI write
+   - Confirm `Glyphs.addCallback(self.update, UPDATEINTERFACE)` is registered in `start()` or `settings()`.
+   - Ensure `update()` writes to UI using the correct API for the control you have, e.g. `self.textField.setStringValue_(text)` for `NSTextField` or `setString_()` as appropriate.
+   - `_log('update() invoked')` at entry and `_log('wrote to textField')` after writing.
+
+8) Test & collect evidence
+   - Syntax-check plugin:
+     python3 -m py_compile ~/Library/"Application Support"/"Glyphs 3"/Plugins/Atlas.glyphsPalette/Contents/Resources/plugin.py
+   - Restart Glyphs and trigger `update()` by selecting glyphs / opening font tabs.
+   - Collect and paste into the ticket:
+     - Macro Panel contents (copy/paste)
+     - `tail -n 200 ~/Library/Logs/Atlas-plugin.log`
+     - Screenshot of the palette showing the text area populated
+     - If you changed xib/nib, mention the outlet edits and attach xib if possible.
+
+9) Clean up & finalize
+   - Remove the `Message(...)` popup when done.
+   - Keep file logging if Macro Panel is unreliable, or revert to Macro prints if Macro Panel is reliable now.
+   - Commit only `Contents/Resources/plugin.py` (and `IBdialog.xib` if you modified it) inside the plugin bundle. Do not move files outside the bundle.
+
+Deliverables to paste back here
+- `tail -n 200 ~/Library/Logs/Atlas-plugin.log` output
+- Macro Panel contents (copy/paste)
+- Screenshot of the palette populated
+- Short changelog: files edited and why
+
+Quickly copyable commands (zsh)
+ls -la ~/Library/"Application Support"/"Glyphs 3"/Plugins/Atlas.glyphsPalette/Contents/Resources
+python3 -m py_compile ~/Library/"Application Support"/"Glyphs 3"/Plugins/Atlas.glyphsPalette/Contents/Resources/plugin.py
+tail -n 200 ~/Library/Logs/Atlas-plugin.log
+
+Constraints & cautions
+- Work only inside the plugin bundle path specified above unless explicitly asked.
+- Do not edit `Contents/MacOS/plugin` or `Info.plist` except with strong reason.
+- Keep changes minimal and reversible. Prefer adding logging over removing code.
+
+Ready-to-paste short agent prompt
+--------------------------------
+Copy-paste this exact text to the next agent and they will continue from the prepared file:
+
+"Please open `Contents/Resources/HANDOFF_FOR_AGENT.txt` in the Atlas plugin bundle and follow the checklist under 'High-level tasks'. Start by adding the file-based `_log()` helper to `plugin.py`, then add the `Message` popup in `start()`, restart Glyphs, and paste the `tail -n 200 ~/Library/Logs/Atlas-plugin.log` output, Macro Panel contents, and a screenshot showing the palette. Work only inside the plugin bundle. Report changes and results back here."
+
+Notes
+- This file is intentionally self-contained so the next agent has everything they need without scanning other files.
+- If you want, I can now apply the logging patch into `plugin.py` here and run a quick `py_compile` to produce the exact lines we expect in the log; say the word and I'll proceed.
+
+End of file
