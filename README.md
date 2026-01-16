@@ -1,4 +1,4 @@
-# Atlas Glyphs Palette
+# Atlas Glyphs 3 Palette Plugin
 
 Atlas is a Glyphs 3 palette plugin that displays the currently selected glyph as a reference, for all languages and symbols. This is primarily to help facilitate with multilingual type design but works for all glyphs. It supports both light and dark modes.
 
